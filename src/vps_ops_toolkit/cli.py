@@ -1,15 +1,17 @@
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from vps_ops_toolkit.checks.docker_check import check_docker
 from vps_ops_toolkit.checks.http_check import check_http
+from vps_ops_toolkit.checks.log_check import check_log
 from vps_ops_toolkit.checks.server_check import (
     check_server,
     get_overall_status,
 )
-from vps_ops_toolkit.models import CheckStatus
 from vps_ops_toolkit.checks.tls_check import check_tls
+from vps_ops_toolkit.models import CheckStatus
 
 
 app = typer.Typer()
@@ -182,6 +184,7 @@ def docker_status():
 
     exit_for_status(result.status)
 
+
 @app.command()
 def tls(
     host: str,
@@ -203,17 +206,27 @@ def tls(
 
     except ValueError as exc:
         console.print()
-        console.print("[bold]TLS Certificate Status[/bold]")
-        console.print(f"Status : {CheckStatus.ERROR.value}")
+        console.print(
+            "[bold]TLS Certificate Status[/bold]"
+        )
+        console.print(
+            f"Status : {CheckStatus.ERROR.value}"
+        )
         console.print(f"Message: {exc}")
 
         exit_for_status(CheckStatus.ERROR)
         return
 
     console.print()
-    console.print("[bold]TLS Certificate Status[/bold]")
-    console.print(f"Host      : {result.host}")
-    console.print(f"Port      : {result.port}")
+    console.print(
+        "[bold]TLS Certificate Status[/bold]"
+    )
+    console.print(
+        f"Host      : {result.host}"
+    )
+    console.print(
+        f"Port      : {result.port}"
+    )
 
     if result.expires_at is not None:
         console.print(
@@ -232,6 +245,79 @@ def tls(
     console.print(
         f"Message   : {result.message}"
     )
+
+    exit_for_status(result.status)
+
+
+@app.command("logs")
+def logs(
+    path: str,
+    tail_lines: int = 1000,
+    max_matches: int = 20,
+):
+    """Scan a log file for errors and warnings."""
+
+    try:
+        result = check_log(
+            path=path,
+            tail_lines=tail_lines,
+            max_matches=max_matches,
+        )
+
+    except ValueError as exc:
+        console.print()
+        console.print("[bold]Log Status[/bold]")
+        console.print(
+            f"Status : {CheckStatus.ERROR.value}"
+        )
+        console.print(f"Message: {exc}")
+
+        exit_for_status(CheckStatus.ERROR)
+        return
+
+    console.print()
+    console.print("[bold]Log Status[/bold]")
+
+    console.print(
+        f"Path      : {result.path}"
+    )
+    console.print(
+        f"Scanned   : {result.scanned_lines} line(s)"
+    )
+    console.print(
+        f"Errors    : {result.error_count}"
+    )
+    console.print(
+        f"Warnings  : {result.warning_count}"
+    )
+    console.print(
+        f"Overall   : {result.status.value}"
+    )
+    console.print(
+        f"Message   : {result.message}"
+    )
+
+    if result.matches:
+        table = Table(
+            title="Recent Matches"
+        )
+
+        table.add_column(
+            "Line",
+            justify="right",
+        )
+        table.add_column("Level")
+        table.add_column("Log")
+
+        for match in result.matches:
+            table.add_row(
+                str(match.line_number),
+                match.level,
+                Text(match.text),
+            )
+
+        console.print()
+        console.print(table)
 
     exit_for_status(result.status)
 
