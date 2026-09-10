@@ -9,6 +9,7 @@ from vps_ops_toolkit.checks.server_check import (
     get_overall_status,
 )
 from vps_ops_toolkit.models import CheckStatus
+from vps_ops_toolkit.checks.tls_check import check_tls
 
 
 app = typer.Typer()
@@ -177,6 +178,59 @@ def docker_status():
     )
     console.print(
         f"Message: {result.message}"
+    )
+
+    exit_for_status(result.status)
+
+@app.command()
+def tls(
+    host: str,
+    port: int = 443,
+    warning_days: int = 30,
+    critical_days: int = 14,
+    timeout: float = 5.0,
+):
+    """Check TLS certificate expiration."""
+
+    try:
+        result = check_tls(
+            host=host,
+            port=port,
+            warning_days=warning_days,
+            critical_days=critical_days,
+            timeout=timeout,
+        )
+
+    except ValueError as exc:
+        console.print()
+        console.print("[bold]TLS Certificate Status[/bold]")
+        console.print(f"Status : {CheckStatus.ERROR.value}")
+        console.print(f"Message: {exc}")
+
+        exit_for_status(CheckStatus.ERROR)
+        return
+
+    console.print()
+    console.print("[bold]TLS Certificate Status[/bold]")
+    console.print(f"Host      : {result.host}")
+    console.print(f"Port      : {result.port}")
+
+    if result.expires_at is not None:
+        console.print(
+            "Expires   : "
+            f"{result.expires_at:%Y-%m-%d %H:%M:%S} UTC"
+        )
+
+    if result.days_left is not None:
+        console.print(
+            f"Days Left : {result.days_left}"
+        )
+
+    console.print(
+        f"Status    : {result.status.value}"
+    )
+    console.print(
+        f"Message   : {result.message}"
     )
 
     exit_for_status(result.status)
