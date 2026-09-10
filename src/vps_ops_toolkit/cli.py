@@ -9,6 +9,12 @@ app = typer.Typer()
 console = Console()
 
 
+@app.callback()
+def main():
+    """VPS and Docker operations monitoring toolkit."""
+    pass
+
+
 @app.command()
 def health(
     url: str,
