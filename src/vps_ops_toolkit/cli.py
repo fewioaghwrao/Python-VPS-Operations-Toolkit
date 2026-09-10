@@ -2,6 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from vps_ops_toolkit.checks.docker_check import check_docker
 from vps_ops_toolkit.checks.http_check import check_http
 from vps_ops_toolkit.checks.server_check import (
     check_server,
@@ -12,6 +13,31 @@ from vps_ops_toolkit.models import CheckStatus
 
 app = typer.Typer()
 console = Console()
+
+
+def exit_for_status(status: CheckStatus) -> None:
+    """
+    Convert monitoring status to CLI exit code.
+
+    0 = OK
+    1 = WARNING
+    2 = CRITICAL
+    3 = ERROR
+    """
+
+    exit_codes = {
+        CheckStatus.OK: 0,
+        CheckStatus.WARNING: 1,
+        CheckStatus.CRITICAL: 2,
+        CheckStatus.ERROR: 3,
+    }
+
+    raise typer.Exit(
+        code=exit_codes.get(
+            status,
+            3,
+        )
+    )
 
 
 @app.callback()
@@ -44,16 +70,7 @@ def health(
             f"Time   : {result.response_time_ms:.2f} ms"
         )
 
-    if result.status == CheckStatus.OK:
-        raise typer.Exit(0)
-
-    if result.status == CheckStatus.WARNING:
-        raise typer.Exit(1)
-
-    if result.status == CheckStatus.CRITICAL:
-        raise typer.Exit(2)
-
-    raise typer.Exit(3)
+    exit_for_status(result.status)
 
 
 @app.command()
@@ -68,15 +85,21 @@ def server(
             warning_threshold=warning,
             critical_threshold=critical,
         )
+
     except ValueError as exc:
         console.print()
-        console.print(f"[bold]Server Status[/bold]")
-        console.print(f"Status : {CheckStatus.ERROR.value}")
+        console.print("[bold]Server Status[/bold]")
+        console.print(
+            f"Status : {CheckStatus.ERROR.value}"
+        )
         console.print(f"Message: {exc}")
 
-        raise typer.Exit(3)
+        exit_for_status(CheckStatus.ERROR)
+        return
 
-    table = Table(title="Server Status")
+    table = Table(
+        title="Server Status"
+    )
 
     table.add_column("Metric")
     table.add_column("Usage")
@@ -95,18 +118,68 @@ def server(
     overall = get_overall_status(results)
 
     console.print()
-    console.print(f"Overall: {overall.value}")
+    console.print(
+        f"Overall: {overall.value}"
+    )
 
-    if overall == CheckStatus.OK:
-        raise typer.Exit(0)
+    exit_for_status(overall)
 
-    if overall == CheckStatus.WARNING:
-        raise typer.Exit(1)
 
-    if overall == CheckStatus.CRITICAL:
-        raise typer.Exit(2)
+@app.command("docker")
+def docker_status():
+    """Check Docker containers and health status."""
 
-    raise typer.Exit(3)
+    result = check_docker()
+
+    console.print()
+
+    if result.status == CheckStatus.ERROR:
+        console.print(
+            "[bold]Docker Status[/bold]"
+        )
+        console.print(
+            f"Status : {result.status.value}"
+        )
+        console.print(
+            f"Message: {result.message}"
+        )
+
+        exit_for_status(result.status)
+        return
+
+    table = Table(
+        title="Docker Status"
+    )
+
+    table.add_column("Container")
+    table.add_column("State")
+    table.add_column("Health")
+    table.add_column(
+        "Restarts",
+        justify="right",
+    )
+    table.add_column("Status")
+
+    for container in result.containers:
+        table.add_row(
+            container.name,
+            container.state,
+            container.health,
+            str(container.restart_count),
+            container.status.value,
+        )
+
+    console.print(table)
+
+    console.print()
+    console.print(
+        f"Overall: {result.status.value}"
+    )
+    console.print(
+        f"Message: {result.message}"
+    )
+
+    exit_for_status(result.status)
 
 
 if __name__ == "__main__":
