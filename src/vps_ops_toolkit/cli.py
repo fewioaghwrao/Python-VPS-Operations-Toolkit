@@ -13,6 +13,9 @@ from vps_ops_toolkit.checks.server_check import (
 from vps_ops_toolkit.checks.tls_check import check_tls
 from vps_ops_toolkit.models import CheckStatus
 from vps_ops_toolkit.checks.deployment_check import check_deployment
+from vps_ops_toolkit.notifications.discord import (
+    send_discord_notification,
+)
 
 app = typer.Typer()
 console = Console()
@@ -387,6 +390,58 @@ def deploy_check(
     console.print(
         f"Message: {result.message}"
     )
+
+    exit_for_status(result.status)
+
+@app.command("notify-test")
+def notify_test(
+    timeout: float = 5.0,
+):
+    """Send a test notification to Discord."""
+
+    message = (
+        "VPS Operations Toolkit\n\n"
+        "Status: OK\n"
+        "Test notification successfully sent.\n\n"
+        "Source: notify-test"
+    )
+
+    try:
+        result = send_discord_notification(
+            message=message,
+            timeout=timeout,
+        )
+
+    except ValueError as exc:
+        console.print()
+        console.print(
+            "[bold]Discord Notification[/bold]"
+        )
+        console.print(
+            f"Status : {CheckStatus.ERROR.value}"
+        )
+        console.print(
+            f"Message: {exc}"
+        )
+
+        exit_for_status(CheckStatus.ERROR)
+        return
+
+    console.print()
+    console.print(
+        "[bold]Discord Notification[/bold]"
+    )
+    console.print(
+        f"Status : {result.status.value}"
+    )
+    console.print(
+        f"Message: {result.message}"
+    )
+
+    if result.http_status is not None:
+        console.print(
+            f"HTTP   : {result.http_status}"
+        )
 
     exit_for_status(result.status)
 
