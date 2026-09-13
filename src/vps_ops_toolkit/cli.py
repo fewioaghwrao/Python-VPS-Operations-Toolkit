@@ -3,6 +3,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from vps_ops_toolkit.checks.deployment_check import check_deployment
 from vps_ops_toolkit.checks.docker_check import check_docker
 from vps_ops_toolkit.checks.http_check import check_http
 from vps_ops_toolkit.checks.log_check import check_log
@@ -12,10 +13,10 @@ from vps_ops_toolkit.checks.server_check import (
 )
 from vps_ops_toolkit.checks.tls_check import check_tls
 from vps_ops_toolkit.models import CheckStatus
-from vps_ops_toolkit.checks.deployment_check import check_deployment
 from vps_ops_toolkit.notifications.discord import (
     send_discord_notification,
 )
+
 
 app = typer.Typer()
 console = Console()
@@ -39,11 +40,31 @@ def exit_for_status(status: CheckStatus) -> None:
     }
 
     raise typer.Exit(
-        code=exit_codes.get(
-            status,
-            3,
-        )
+        code=exit_codes.get(status, 3)
     )
+
+
+def build_deployment_notification(result) -> str:
+    """Build a Discord message for a deployment failure."""
+
+    lines = [
+        "VPS Operations Toolkit",
+        "",
+        "Check: Deployment Check",
+        f"Status: {result.status.value}",
+        f"Message: {result.message}",
+        "",
+        "Results:",
+    ]
+
+    for check in result.checks:
+        lines.append(
+            f"- {check.name}: "
+            f"{check.status.value} "
+            f"({check.message})"
+        )
+
+    return "\n".join(lines)
 
 
 @app.callback()
@@ -68,12 +89,17 @@ def health(
 
     console.print()
     console.print(f"[bold]{result.name}[/bold]")
-    console.print(f"Status : {result.status.value}")
-    console.print(f"Message: {result.message}")
+    console.print(
+        f"Status : {result.status.value}"
+    )
+    console.print(
+        f"Message: {result.message}"
+    )
 
     if result.response_time_ms is not None:
         console.print(
-            f"Time   : {result.response_time_ms:.2f} ms"
+            f"Time   : "
+            f"{result.response_time_ms:.2f} ms"
         )
 
     exit_for_status(result.status)
@@ -94,13 +120,19 @@ def server(
 
     except ValueError as exc:
         console.print()
-        console.print("[bold]Server Status[/bold]")
+        console.print(
+            "[bold]Server Status[/bold]"
+        )
         console.print(
             f"Status : {CheckStatus.ERROR.value}"
         )
-        console.print(f"Message: {exc}")
+        console.print(
+            f"Message: {exc}"
+        )
 
-        exit_for_status(CheckStatus.ERROR)
+        exit_for_status(
+            CheckStatus.ERROR
+        )
         return
 
     table = Table(
@@ -150,7 +182,9 @@ def docker_status():
             f"Message: {result.message}"
         )
 
-        exit_for_status(result.status)
+        exit_for_status(
+            result.status
+        )
         return
 
     table = Table(
@@ -215,15 +249,20 @@ def tls(
         console.print(
             f"Status : {CheckStatus.ERROR.value}"
         )
-        console.print(f"Message: {exc}")
+        console.print(
+            f"Message: {exc}"
+        )
 
-        exit_for_status(CheckStatus.ERROR)
+        exit_for_status(
+            CheckStatus.ERROR
+        )
         return
 
     console.print()
     console.print(
         "[bold]TLS Certificate Status[/bold]"
     )
+
     console.print(
         f"Host      : {result.host}"
     )
@@ -269,23 +308,32 @@ def logs(
 
     except ValueError as exc:
         console.print()
-        console.print("[bold]Log Status[/bold]")
+        console.print(
+            "[bold]Log Status[/bold]"
+        )
         console.print(
             f"Status : {CheckStatus.ERROR.value}"
         )
-        console.print(f"Message: {exc}")
+        console.print(
+            f"Message: {exc}"
+        )
 
-        exit_for_status(CheckStatus.ERROR)
+        exit_for_status(
+            CheckStatus.ERROR
+        )
         return
 
     console.print()
-    console.print("[bold]Log Status[/bold]")
+    console.print(
+        "[bold]Log Status[/bold]"
+    )
 
     console.print(
         f"Path      : {result.path}"
     )
     console.print(
-        f"Scanned   : {result.scanned_lines} line(s)"
+        f"Scanned   : "
+        f"{result.scanned_lines} line(s)"
     )
     console.print(
         f"Errors    : {result.error_count}"
@@ -324,6 +372,7 @@ def logs(
 
     exit_for_status(result.status)
 
+
 @app.command("deploy-check")
 def deploy_check(
     health_url: str,
@@ -331,27 +380,52 @@ def deploy_check(
     health_expected_status: int = 200,
     api_expected_status: int = 200,
     timeout: float = 5.0,
+    notify: bool = typer.Option(
+        False,
+        "--notify",
+        help=(
+            "Send a Discord notification "
+            "when the deployment check is not OK."
+        ),
+    ),
 ):
-    """Verify a deployment using health and API endpoints."""
+    """
+    Verify a deployment using health and API endpoints.
+
+    When --notify is specified, WARNING, CRITICAL,
+    and ERROR results are sent to Discord.
+    """
 
     try:
         result = check_deployment(
             health_url=health_url,
             api_url=api_url,
-            health_expected_status=health_expected_status,
-            api_expected_status=api_expected_status,
+            health_expected_status=(
+                health_expected_status
+            ),
+            api_expected_status=(
+                api_expected_status
+            ),
             timeout=timeout,
         )
 
     except ValueError as exc:
         console.print()
-        console.print("[bold]Deployment Check[/bold]")
+        console.print(
+            "[bold]Deployment Check[/bold]"
+        )
         console.print(
             f"Status : {CheckStatus.ERROR.value}"
         )
-        console.print(f"Message: {exc}")
+        console.print(
+            f"Message: {exc}"
+        )
 
-        exit_for_status(CheckStatus.ERROR)
+        # Invalid command arguments are treated
+        # as an execution error.
+        exit_for_status(
+            CheckStatus.ERROR
+        )
         return
 
     table = Table(
@@ -391,7 +465,54 @@ def deploy_check(
         f"Message: {result.message}"
     )
 
+    # Only notify about abnormal states.
+    if notify:
+        if result.status == CheckStatus.OK:
+            console.print()
+            console.print(
+                "Notification: skipped "
+                "(deployment status is OK)."
+            )
+
+        else:
+            message = (
+                build_deployment_notification(
+                    result
+                )
+            )
+
+            notification = (
+                send_discord_notification(
+                    message=message,
+                )
+            )
+
+            console.print()
+
+            if (
+                notification.status
+                == CheckStatus.OK
+            ):
+                console.print(
+                    "Notification: "
+                    "Discord message sent."
+                )
+
+            else:
+                console.print(
+                    "Notification: "
+                    "Discord delivery failed."
+                )
+                console.print(
+                    f"Notification Error: "
+                    f"{notification.message}"
+                )
+
+    # IMPORTANT:
+    # Discord notification failure must not
+    # replace the deployment result.
     exit_for_status(result.status)
+
 
 @app.command("notify-test")
 def notify_test(
@@ -407,9 +528,11 @@ def notify_test(
     )
 
     try:
-        result = send_discord_notification(
-            message=message,
-            timeout=timeout,
+        result = (
+            send_discord_notification(
+                message=message,
+                timeout=timeout,
+            )
         )
 
     except ValueError as exc:
@@ -424,7 +547,9 @@ def notify_test(
             f"Message: {exc}"
         )
 
-        exit_for_status(CheckStatus.ERROR)
+        exit_for_status(
+            CheckStatus.ERROR
+        )
         return
 
     console.print()
