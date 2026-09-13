@@ -12,7 +12,7 @@ from vps_ops_toolkit.checks.server_check import (
 )
 from vps_ops_toolkit.checks.tls_check import check_tls
 from vps_ops_toolkit.models import CheckStatus
-
+from vps_ops_toolkit.checks.deployment_check import check_deployment
 
 app = typer.Typer()
 console = Console()
@@ -318,6 +318,75 @@ def logs(
 
         console.print()
         console.print(table)
+
+    exit_for_status(result.status)
+
+@app.command("deploy-check")
+def deploy_check(
+    health_url: str,
+    api_url: str | None = None,
+    health_expected_status: int = 200,
+    api_expected_status: int = 200,
+    timeout: float = 5.0,
+):
+    """Verify a deployment using health and API endpoints."""
+
+    try:
+        result = check_deployment(
+            health_url=health_url,
+            api_url=api_url,
+            health_expected_status=health_expected_status,
+            api_expected_status=api_expected_status,
+            timeout=timeout,
+        )
+
+    except ValueError as exc:
+        console.print()
+        console.print("[bold]Deployment Check[/bold]")
+        console.print(
+            f"Status : {CheckStatus.ERROR.value}"
+        )
+        console.print(f"Message: {exc}")
+
+        exit_for_status(CheckStatus.ERROR)
+        return
+
+    table = Table(
+        title="Deployment Check"
+    )
+
+    table.add_column("Check")
+    table.add_column("URL")
+    table.add_column("Result")
+    table.add_column("Time")
+    table.add_column("Status")
+
+    for check in result.checks:
+        response_time = "-"
+
+        if check.response_time_ms is not None:
+            response_time = (
+                f"{check.response_time_ms:.2f} ms"
+            )
+
+        table.add_row(
+            check.name,
+            check.url,
+            check.message,
+            response_time,
+            check.status.value,
+        )
+
+    console.print()
+    console.print(table)
+
+    console.print()
+    console.print(
+        f"Overall: {result.status.value}"
+    )
+    console.print(
+        f"Message: {result.message}"
+    )
 
     exit_for_status(result.status)
 
