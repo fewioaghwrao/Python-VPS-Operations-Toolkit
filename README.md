@@ -23,36 +23,48 @@ TLS 証明書期限監視、ログ解析、デプロイ後確認、Discord Webho
 
 ## Screenshots / Operation Evidence
 
-実装した CLI を実環境で動作確認したエビデンスです。
-監視結果の表示だけでなく、閾値判定、期待 HTTP ステータスとの比較、Exit Code、Discord Webhook 通知まで確認しています。
+実装した CLI を **実際の ConoHa VPS（Ubuntu 24.04.4 LTS / Python 3.12.3）** と公開 API で動作確認したエビデンスです。
+監視結果の表示だけでなく、実 Docker コンテナの状態取得、期待 HTTP ステータスとの比較、Exit Code、Discord Webhook 通知まで確認しています。
 
-### Server Resource Monitoring
+### VPS Server Resource Monitoring
 
-![Server resource monitoring](docs/images/server-monitor.png)
+![VPS server resource monitoring](docs/images/vps-server-monitor.png)
 
-CPU / Memory / Disk / Swap を取得し、設定した閾値に基づいて各項目と Overall Status を判定します。
-上記例では Disk 85.0% を `WARNING` と判定しています。
+VPS 上で `vps-ops server` を実行し、CPU / Memory / Disk / Swap を取得しています。
+各項目は `OK`、`Overall: OK`、`Exit Code: 0` となり、実 VPS 上でサーバー監視が動作することを確認しています。
 
-### Deployment Check - Expected Status Match
+### VPS Docker Monitor
 
-![Deployment check OK](docs/images/deployment-check-ok.png)
+![VPS Docker monitoring](docs/images/vps-docker-monitor.png)
 
-Health Endpoint は HTTP 200、認証必須 API は期待値 HTTP 401 として確認し、
-実際のレスポンスと一致したため `Overall: OK` と判定しています。
+同一 VPS 上で稼働する FAQ 系・Invoice 系の Docker コンテナを一括確認しています。
+5 コンテナすべてが `running`、DB コンテナは `healthy`、`Overall: OK`、`Exit Code: 0` となることを確認しています。
+
+### Invoice Deployment Check - Expected Status Match
+
+![Invoice deployment check OK](docs/images/invoice-deployment-check-ok.png)
+
+Invoice API の Health Endpoint は HTTP 200、認証必須 API は期待値 HTTP 401 として確認しています。
+実際のレスポンスと一致し、`2/2 deployment check(s) passed.`、`Overall: OK`、`Exit Code: 0` となることを確認しています。
+
+### FAQ HTTP Health Check
+
+![FAQ health check OK](docs/images/faq-health-check-ok.png)
+
+FAQ API の公開 Health Endpoint に対して HTTP 200 を確認し、`Status: OK`、`Exit Code: 0` となることを確認しています。
 
 ### Deployment Check - Failure Detection and Discord Notification
 
 ![Deployment check critical](docs/images/deployment-check-critical.png)
 
-API の期待値を HTTP 200 とした状態で実際に HTTP 401 が返ったため、
-`CRITICAL` と判定し、Discord 通知を送信しています。
-監視結果の Exit Code は `2` を維持します。
+異常検知・通知の確認用として、認証必須 API に対する期待値を意図的に HTTP 200 とし、実際の HTTP 401 との差分を発生させています。
+`CRITICAL` と判定して Discord へ通知し、監視結果の `Exit Code: 2` を維持することを確認しています。
 
 ### Discord Critical Alert
 
 ![Discord critical alert](docs/images/discord-critical-alert.png)
 
-`deploy-check --notify` による異常検知結果が Discord の `#vps-alerts` に送信された例です。
+`deploy-check --notify` による異常検知結果が Discord の通知先へ送信された例です。
 Webhook URL などの秘密情報は画像・リポジトリには含めません。
 
 ---
@@ -320,6 +332,15 @@ PowerShell:
 $env:VPS_OPS_DISCORD_WEBHOOK_URL="YOUR_DISCORD_WEBHOOK_URL"
 ```
 
+Linux / Bash:
+
+```bash
+export VPS_OPS_DISCORD_WEBHOOK_URL="YOUR_DISCORD_WEBHOOK_URL"
+```
+
+`.env.example` は必要な環境変数名を示す公開用テンプレートです。
+現在の実装は環境変数を直接参照するため、`.env` ファイルの自動読み込みは行いません。
+
 Webhook URL が設定されていることだけ確認する場合:
 
 ```powershell
@@ -550,11 +571,14 @@ python-vps-operations-toolkit/
 │
 ├─ docs/
 │  └─ images/
-│     ├─ server-monitor.png
-│     ├─ deployment-check-ok.png
+│     ├─ vps-server-monitor.png
+│     ├─ vps-docker-monitor.png
+│     ├─ invoice-deployment-check-ok.png
+│     ├─ faq-health-check-ok.png
 │     ├─ deployment-check-critical.png
 │     └─ discord-critical-alert.png
 │
+├─ .env.example
 ├─ .gitignore
 ├─ pyproject.toml
 └─ README.md
@@ -590,31 +614,42 @@ Clone:
 
 ```bash
 git clone <repository-url>
-cd python-vps-operations-toolkit
+cd Python-VPS-Operations-Toolkit
 ```
 
-仮想環境:
+### Linux / VPS
 
 ```bash
-py -3.12 -m venv .venv
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-Windows PowerShell:
+Ubuntu で `ensurepip is not available` と表示された場合は、venv パッケージを追加してから再作成します。
+
+```bash
+sudo apt install -y python3.12-venv
+```
+
+### Windows PowerShell
 
 ```powershell
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-Install:
+開発・テスト用依存関係も含める場合:
 
 ```bash
-python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
 確認:
 
-```powershell
+```bash
 vps-ops --help
 ```
 
@@ -740,6 +775,26 @@ CheckStatus
 単なる監視表示ではなく、
 デプロイ後の検証・異常通知・終了コードまでを
 1つの CLI で実行できることを目的としています。
+
+---
+
+## Real VPS Verification
+
+実際の VPS 環境でも CLI をインストールし、以下を確認しています。
+
+| Item | Result |
+|---|---|
+| OS | Ubuntu 24.04.4 LTS |
+| Python | 3.12.3 |
+| Server Monitor | Overall OK / Exit 0 |
+| Docker Monitor | 5 containers checked / Overall OK / Exit 0 |
+| Invoice API | Health 200 / Auth API 401 expected / Overall OK |
+| FAQ API | Health 200 / Status OK |
+| Failure Detection | Expected 200 vs Actual 401 -> CRITICAL / Exit 2 |
+| Discord Notification | CRITICAL alert delivery confirmed |
+
+同一 VPS 上で FAQ API / MySQL と Invoice API / nginx / PostgreSQL が稼働する構成に対し、
+サーバーリソース監視と Docker コンテナ監視を実行しています。
 
 ---
 
