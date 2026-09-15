@@ -1,5 +1,5 @@
 # Python VPS Operations Toolkit
-
+![CI](https://github.com/fewioaghwrao/Python-VPS-Operations-Toolkit/actions/workflows/ci.yml/badge.svg)
 VPS / Docker 環境の監視・異常検知・デプロイ確認を自動化する、
 Python 製の CLI 運用支援ツールです。
 
