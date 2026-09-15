@@ -1,5 +1,6 @@
 # Python VPS Operations Toolkit
 ![CI](https://github.com/fewioaghwrao/Python-VPS-Operations-Toolkit/actions/workflows/ci.yml/badge.svg)
+
 VPS / Docker 環境の監視・異常検知・デプロイ確認を自動化する、
 Python 製の CLI 運用支援ツールです。
 
@@ -533,6 +534,20 @@ vps-ops --help
 
 ---
 
+## Design Documents
+
+本ツールの要件・基本設計・詳細設計は、実装コードおよびテスト内容に対応する形で `docs/design/` に整理しています。
+
+| Document | 内容 |
+|---|---|
+| [01_requirements.md](docs/design/01_requirements.md) | 開発目的、対象範囲、機能要件、非機能要件、運用・セキュリティ要件 |
+| [02_basic-design.md](docs/design/02_basic-design.md) | システム構成、CLI・外部インターフェース、ステータス・Exit Code、例外・通知方針 |
+| [03_detail-design.md](docs/design/03_detail-design.md) | 各モジュール・関数、データモデル、判定ロジック、入力値検証、テストとの対応 |
+
+README では概要と実行例を扱い、設計上の詳細は上記ドキュメントに分離しています。
+
+---
+
 ## Project Structure
 
 ```
@@ -570,6 +585,11 @@ python-vps-operations-toolkit/
 │     └─ test_discord.py
 │
 ├─ docs/
+│  ├─ design/
+│  │  ├─ 01_requirements.md
+│  │  ├─ 02_basic-design.md
+│  │  └─ 03_detail-design.md
+│  │
 │  └─ images/
 │     ├─ vps-server-monitor.png
 │     ├─ vps-docker-monitor.png
